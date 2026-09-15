@@ -1,23 +1,3 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { initializeFirestore, collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, limit, doc, updateDoc, deleteDoc, increment, deleteField, startAfter, endBefore, limitToLast, getCountFromServer, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-
-const firebaseConfig = {
-    apiKey: "AIzaSyBfSALZx3_bnG4GI7djWenNDM5UjHZLuPM",
-    authDomain: "pawiwahan-theme-1.firebaseapp.com",
-    projectId: "pawiwahan-theme-1",
-    storageBucket: "pawiwahan-theme-1.firebasestorage.app",
-    messagingSenderId: "714291588176",
-    appId: "1:714291588176:web:addd15e45c498bd565b555",
-    measurementId: "G-0R22TRVSEL"
-};
-
-// Inisialisasi Firebase
-const app = initializeApp(firebaseConfig);
-// Menggunakan initializeFirestore dengan force long polling untuk menghindari ERR_TIMED_OUT pada koneksi streaming
-const db = initializeFirestore(app, {
-    experimentalForceLongPolling: true,
-});
-
 // --- FITUR ANTI-INSPECT & KLIK KANAN ---
 // Menghalangi menu klik kanan
 document.addEventListener('contextmenu', (e) => e.preventDefault());
@@ -311,7 +291,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     // --- Logika Countdown ---
-    const targetDate = new Date("2026-01-30T08:00:00+08:00").getTime(); // Waktu Mempelai (Tahun-Bulan-Tanggal)
+    const targetDate = new Date("2026-09-30T08:00:00+08:00").getTime(); // Waktu Mempelai (Tahun-Bulan-Tanggal)
     const daysEl = document.getElementById("days");
     const hoursEl = document.getElementById("hours");
     const minsEl = document.getElementById("minutes");
@@ -839,108 +819,22 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     if (hybridForm) {
-        hybridForm.addEventListener('submit', async (e) => {
+        hybridForm.addEventListener('submit', (e) => {
             e.preventDefault();
-            const submitBtn = hybridForm.querySelector('button');
-            if (submitBtn.innerText === 'Berhasil!') return; // Mencegah klik ganda saat pesan sukses tampil
-
-            const originalText = submitBtn.innerText;
-            submitBtn.disabled = true;
-            submitBtn.innerText = 'Mengirim...';
-
-            try {
-                if (replyingToId) {
-                    // PROSES BALASAN (Sub-collection)
-                    const docRef = doc(db, "messages", replyingToId);
-                    const repliesRef = collection(db, "messages", replyingToId, "replies");
-                    
-                    // 1. Siapkan data balasan
-                    const replyData = {
-                        name: document.getElementById('att-name').value,
-                        message: document.getElementById('att-message').value,
-                        replyTo: document.getElementById('replying-to-name').innerText, // Mencatat siapa yang dibalas
-                        isMempelaiReply: isMempelai,
-                        timestamp: serverTimestamp(),
-                        likes: 0 // Inisialisasi field likes pada balasan
-                    };
-
-                    // Hanya tambahkan adminKey jika sedang dalam mode mempelai
-                    if (isMempelai) replyData.adminKey = "mempelai123";
-
-                    const newReplyRef = await addDoc(repliesRef, replyData);
-
-                    // 2. Jika ini balasan mempelai, hapus adminKey dari dokumen segera setelah terverifikasi
-                    if (isMempelai) {
-                        await updateDoc(newReplyRef, { adminKey: deleteField() });
-                    }
-
-                    // 3. Update counter jumlah balasan di dokumen utama
-                    await updateDoc(docRef, {
-                        replyCount: increment(1)
-                    });
-
-                    showToast('Balasan Anda telah terkirim.');
-                    
-                    // Reset Mode Balas
-                    replyingToId = null;
-                    document.getElementById('reply-mode-indicator').style.display = 'none';
-                } else {
-                    // PROSES UCAPAN BARU
-                    const guestCount = document.getElementById('att-status').value === 'Hadir' ? Number(document.getElementById('att-count').value) : 0;
-                    
-                    const newDoc = await addDoc(collection(db, "messages"), {
-                        name: document.getElementById('att-name').value,
-                        status: document.getElementById('att-status').value,
-                        count: guestCount,
-                        message: document.getElementById('att-message').value,
-                        timestamp: serverTimestamp(),
-                        likes: 0,
-                        replyCount: 0
-                    });
-
-                    // Jalankan update metadata di background agar tidak memblokir UI sukses
-                    if (guestCount > 0) {
-                        setDoc(doc(db, "metadata", "totals"), { 
-                            totalGuests: increment(guestCount) 
-                        }, { merge: true }).catch(err => console.error("Metadata update failed:", err));
-                    }
-
-                    showToast('Terima kasih! Ucapan Anda telah tersimpan.');
-                }
-
-                // Simpan timestamp pengiriman terakhir (Kecuali jika Mempelai)
-                if (!isMempelai) {
-                    localStorage.setItem('last_gb_submission', Date.now());
-                }
-                
-                submitBtn.innerText = 'Berhasil!';
-                hybridForm.reset();
-                if (charCounter) {
-                    charCounter.textContent = '0 / 500';
-                    charCounter.style.color = '#999';
-                    charCounter.style.fontWeight = 'normal';
-                }
-                document.getElementById('att-message').placeholder = "Tuliskan ucapan manis Anda...";
-                
-                // Reset status kehadiran ke default "Pilih Konfirmasi" dan pastikan container muncul
-                const formRow = statusSelect?.closest('.form-row');
-                if (formRow) formRow.style.display = 'flex';
-                if (statusSelect) {
-                    statusSelect.value = '';
-                    statusSelect.required = true;
-                }
-                if (countGroup) countGroup.style.display = 'block';
-
-                setTimeout(() => {
-                    submitBtn.innerText = originalText;
-                }, 3000);
-            } catch (error) {
-                console.error("Error: ", error);
-                showToast('Gagal mengirim. Silakan coba lagi.', 'error');
-                submitBtn.innerText = originalText; // Revert teks jika gagal
-            } finally {
-                submitBtn.disabled = false;
-            }
+    
+            const nama = document.getElementById('att-name').value;
+            const status = document.getElementById('att-status').value;
+            const jumlah = document.getElementById('att-count').value;
+            const pesan = document.getElementById('att-message').value;
+    
+            const nomorWA = "6282146422305"; // GANTI NOMOR WA KAMU
+    
+            const text = `Hi Ana, aku ${nama}. Mau konfirmasi kehadiran, bahwa
+            aku ${status} yaa. Dengan jumlah tamu ${jumlah} orang. Jadi.. ${pesan}`;
+    
+            const url = `https://wa.me/${nomorWA}?text=${encodeURIComponent(text)}`;
+    
+            window.open(url, "_blank");
         });
     }
 
